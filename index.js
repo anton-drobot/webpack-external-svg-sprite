@@ -1,11 +1,24 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const glob = require('glob');
 const svgo = require('svgo');
-const SvgStorePlugin = require('./lib/SvgStorePlugin');
+const Chunk = require('webpack/lib/Chunk');
+const OriginalSource = require('webpack-sources/lib/OriginalSource');
+
+const SvgSprite = require('./lib/SvgSprite');
+
+let ExtractedModule;
+
+try {
+    ExtractedModule = require('extract-text-webpack-plugin/ExtractedModule');
+} catch (e) {
+    ExtractedModule = null;
+}
 
 const DEFAULT_OPTIONS = {
+    emit: true,
     directory: '/',
     name: 'images/sprite.svg',
     prefix: 'icon-',
@@ -15,104 +28,196 @@ const DEFAULT_OPTIONS = {
     }
 };
 
-function SvgStorePlugin(options) {
-    this.options = Object.assign({}, DEFAULT_OPTIONS, options);
-}
+/**
+ * Stores the sprites to be generated and the icons to be included on each one.
+ * @memberOf SvgStorePlugin
+ * @private
+ * @static
+ * @type {Object.<string, SvgSprite>}
+ */
+let store = {};
 
-SvgStorePlugin.prototype.apply = function (compiler) {
-    compiler.plugin('emit', function(compilation, callback) {
-        const svgFiles = glob(path.join(this.options.directory, '**/*.svg'), { nodir: true });
+/**
+ * SVG Store Plugin
+ * - Manages all sprites data
+ * - Generates the sprites during optimization time
+ * - Plugin for webpack
+ */
+class SvgStorePlugin {
 
-        svgFiles.forEach((file) => {
+    /**
+     * Initializes options.
+     * @param options
+     */
+    constructor(options = {}) {
+        this.options = Object.assign({}, DEFAULT_OPTIONS, options);
+    }
 
-        });
-
-
-        // Create a header string for the generated file:
-        var filelist = 'In this build:\n\n';
-
-        // Loop through all compiled assets,
-        // adding a new line item for each filename.
-        for (var filename in compilation.assets) {
-            filelist += ('- '+ filename +'\n');
+    /**
+     * Gets the sprite instance for the given path or if it doesn't exist creates a new one.
+     * @param {string} resourcePath - the relative path for the sprite based on the output folder.
+     * @returns {SvgSprite}
+     */
+    static getSprite(resourcePath) {
+        if (!(resourcePath in store)) {
+            store[resourcePath] = new SvgSprite(resourcePath);
         }
 
-        // Insert this list into the webpack build as a new file asset:
-        compilation.assets[this.options.filename] =
-
-        callback();
-    });
-};
-
-module.exports = SvgStorePlugin;
-
-/*
-const loaderUtils = require('loader-utils');
-const svgo = require('svgo');
-
-const SvgStorePlugin = require('./lib/SvgStorePlugin');
-
-/!**
- * Default values for every param that can be passed in the loader query.
- * @const
- * @type {Object}
- *!/
-const DEFAULT_QUERY_VALUES = {
-    name: 'img/sprite.svg',
-    prefix: 'icon-',
-    suffix: '',
-    svgoOptions: {
-        plugins: []
+        return store[resourcePath];
     }
-};
 
-/!**
- * Applies SVGO on the SVG file.
- * Registers the SVG on the Sprites store.
- * Generates SVG metadata to be passed to JavaScript and CSS files.
- * @param {Buffer} content - the content of the SVG file.
- *!/
-function loader(content) {
-    const { addDependency, cacheable, resourcePath, options: { output: { publicPath } } } = this;
+    /**
+     * - Generates every registered sprite during optimization phase.
+     * - Replaces the sprite URL with the hashed URL during modules optimization phase.
+     * - Performs the previous step also for extracted chuncks (ExtractTextPlugin)
+     * - Adds the sprites to the compilation assets during the additional assets phase.
+     * @param {Compiler} compiler
+     */
+    apply(compiler) {
+        // Get compilation instance
+        compiler.plugin('this-compilation', (compilation) => {
+            const svgFiles = glob.sync(path.join(this.options.directory, '**/*.svg'), { nodir: true });
+            const sprite = SvgStorePlugin.getSprite(this.options.name);
 
-    // Get callback because the SVG is going to be optimized and that is an async operation
-    const callback = this.async();
+            svgFiles.forEach((file) => {
+                const content = fs.readFileSync(file);
 
-    // Parse the loader query and apply the default values in case no values are provided
-    const query = Object.assign({}, DEFAULT_QUERY_VALUES, loaderUtils.getOptions(this));
+                new svgo(this.options.svgoOptions).optimize(content, (result) => {
+                    // Register the sprite and icon
+                    sprite.addIcon(file, result.data, { prefix: this.options.prefix, suffix: this.options.suffix });
+                });
+            });
 
-    const { svgoOptions, prefix, suffix } = query;
+            // Generate sprites during the optimization phase
+            compilation.plugin('optimize', () => {
 
-    // Add the icon as a dependency
-    addDependency(resourcePath);
+                // For every sprite
+                for (let spritePath in store) {
+                    if (store.hasOwnProperty(spritePath)) {
 
-    // Set the loader as not cacheable
-    cacheable(false);
-
-    // Start optimizing the SVG file
-    try {
-        new svgo(svgoOptions).optimize(content, function (result) {
-            // Register the sprite and icon
-            const icon = SvgStorePlugin.getSprite(query.name).addIcon(resourcePath, result.data, { prefix, suffix });
-
-            // Export the icon as a metadata object that contains urls to be used on an <img/> in HTML or url() in CSS
-            callback(
-                null,
-                `module.exports = {
-                    name: '${icon.getName()}',
-                    symbol: '${icon.getUrlToSymbol(publicPath)}',
-                    toString: function () {
-                        return this.symbol;
+                        // Generate sprite content
+                        store[spritePath].generate();
                     }
-                };`
-            );
+                }
+            });
+
+            // Replace the sprites URL with the hashed URL during the modules optimization phase
+            compilation.plugin('optimize-modules', (modules) => {
+
+                // Get sprites with interpolated name
+                const spritesWithInterpolatedName = this.getSpritesWithInterpolateName();
+
+                if (spritesWithInterpolatedName.length > 0) {
+
+                    // Find icons modules
+                    modules.forEach((module) => {
+                        for (let sprite of spritesWithInterpolatedName) {
+                            const { icons } = sprite;
+
+                            // If the module corresponds to one of the icons of this sprite
+                            if (module.resource in icons) {
+                                this.replaceSpritePathInModuleSource(module, sprite);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Replace the sprites URL with the hashed URL during the extracted chunks optimization phase
+            compilation.plugin('optimize-extracted-chunks', (chunks) => {
+
+                // Get sprites with interpolated name
+                const spritesWithInterpolatedName = this.getSpritesWithInterpolateName();
+
+                if (spritesWithInterpolatedName.length > 0) {
+                    chunks.forEach((chunk) => {
+                        chunk.modules.forEach((module) => {
+                            for (let sprite of spritesWithInterpolatedName) {
+                                if (module instanceof ExtractedModule) {
+                                    this.replaceSpritePathInModuleSource(module, sprite);
+                                }
+                            }
+                        });
+                    });
+                }
+            });
+
+            // Add sprites to the compilation assets
+            if (this.options.emit) {
+                compilation.plugin('additional-assets', (callback) => {
+
+                    // For every sprite
+                    for (let spritePath in store) {
+                        if (store.hasOwnProperty(spritePath)) {
+
+                            // Get sprite
+                            const { name, resourcePath, content } = store[spritePath];
+
+                            // Create a chunk for the sprite
+                            const chunk = new Chunk(name);
+                            chunk.ids = [];
+                            chunk.files.push(resourcePath);
+
+                            // Add the sprite to the compilation assets
+                            compilation.assets[resourcePath] = {
+                                source() {
+                                    return content;
+                                },
+                                size() {
+                                    return content.length;
+                                }
+                            };
+
+                            // Add chunk to the compilation
+                            // NOTE: This step is only to allow other plugins to detect the existence of this asset
+                            compilation.chunks.push(chunk);
+                        }
+                    }
+
+                    callback();
+                });
+            }
         });
-    } catch (err) {
-        callback(err);
+    }
+
+    /**
+     * Gets sprites which name has an hash.
+     * @returns {SvgSprite[]}
+     */
+    getSpritesWithInterpolateName() {
+        const spritesWithInterpolatedName = [];
+
+        for (let spritePath in store) {
+            if (store.hasOwnProperty(spritePath)) {
+                const sprite = store[spritePath];
+                const { originalPath, resourcePath } = sprite;
+
+                if (originalPath !== resourcePath) {
+                    spritesWithInterpolatedName.push(sprite);
+                }
+            }
+        }
+
+        return spritesWithInterpolatedName;
+    }
+
+    /**
+     * Replaces the given sprite URL with the hashed URL in the given module source.
+     * @param {Module} module - the module where the URL needs to be replaced.
+     * @param {SvgSprite} sprite - the sprite for the module.
+     */
+    replaceSpritePathInModuleSource(module, sprite) {
+        const { originalPathRegExp, resourcePath } = sprite;
+
+        let source = module._source;
+
+        if (typeof source === 'string') {
+            module._source = source.replace(originalPathRegExp, resourcePath);
+        } else if (source instanceof OriginalSource) {
+            source._name = source._name.replace(originalPathRegExp, resourcePath);
+            source._value = source._value.replace(originalPathRegExp, resourcePath);
+        }
     }
 }
 
-loader.raw = true;
-
-module.exports = loader;
-*/
+module.exports = SvgStorePlugin;
