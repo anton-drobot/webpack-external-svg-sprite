@@ -4,14 +4,14 @@ A plugin for webpack that converts all your SVGs into symbols and merges them in
 
 ## Requirements
 
-You will need NodeJS v6+, npm v3+ and webpack 2.
+You will need NodeJS v4+, npm v2+ and webpack 2.
 
 To make it work in older browsers, like Internet Explorer, you will also need [SVG for Everybody](https://github.com/jonathantneal/svg4everybody) or [svgxuse](https://github.com/Keyamoon/svgxuse).
 
 ## Installation
 
 ```bash
-npm i https://github.com/anton-drobot/webpack-external-svg-sprite.git --save-dev
+npm i webpack-external-svg-sprite --save-dev
 ```
 
 ## Plugin Options
