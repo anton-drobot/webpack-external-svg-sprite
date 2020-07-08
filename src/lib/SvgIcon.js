@@ -26,18 +26,22 @@ class SvgIcon {
         // Get the icon name by removing the extension form the file name
         const name = filename.substring(0, filename.indexOf('.'));
 
-        // Get the icon symbol name
-        let symbolName = name + suffix;
+        const symbolName = (() => {
+            // Get the icon symbol name
+            let symbolName = name + suffix; //TODO: Check if this is correct (concat w/ suffix)
 
-        // Prepend the prefix to the symbol name
-        if (prefix) {
-            symbolName = prefix + symbolName;
-        }
+            // Prepend the prefix to the symbol name
+            if (prefix) {
+                symbolName = prefix + symbolName;
+            }
 
-        // Append the suffix to the symbol name
-        if (suffix) {
-            symbolName += suffix;
-        }
+            // Append the suffix to the symbol name
+            if (suffix) {
+                symbolName += suffix;
+            }
+
+            return symbolName;
+        })();
 
         this.content = content;
         this.name = name;

@@ -60,7 +60,7 @@ class SvgSprite {
         const symbols = [];
 
         // For every icon in the sprite
-        for (let iconPath in icons) {
+        for (const iconPath in icons) {
             if (icons.hasOwnProperty(iconPath)) {
 
                 // Get the icon metadata
