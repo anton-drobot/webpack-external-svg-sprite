@@ -11,6 +11,7 @@ var SvgDocument = require('./SvgDocument');
 /**
  * SVG Icon
  * - Stores an icon metadata and its content.
+ * @class SvgIcon
  */
 
 var SvgIcon = function () {
@@ -36,18 +37,22 @@ var SvgIcon = function () {
         // Get the icon name by removing the extension form the file name
         var name = filename.substring(0, filename.indexOf('.'));
 
-        // Get the icon symbol name
-        var symbolName = name + suffix;
+        var symbolName = function () {
+            // Get the icon symbol name
+            var symbolName = name + suffix; //TODO: Check if this is correct (concat w/ suffix)
 
-        // Prepend the prefix to the symbol name
-        if (prefix) {
-            symbolName = prefix + symbolName;
-        }
+            // Prepend the prefix to the symbol name
+            if (prefix) {
+                symbolName = prefix + symbolName;
+            }
 
-        // Append the suffix to the symbol name
-        if (suffix) {
-            symbolName += suffix;
-        }
+            // Append the suffix to the symbol name
+            if (suffix) {
+                symbolName += suffix;
+            }
+
+            return symbolName;
+        }();
 
         this.content = content;
         this.name = name;

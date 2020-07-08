@@ -6,6 +6,7 @@ const SvgIcon = require('./SvgIcon');
 
 /**
  * SVG Sprite
+ * @class SvgSprite
  */
 class SvgSprite {
 
@@ -34,7 +35,7 @@ class SvgSprite {
      * @param {string} content - the icon content.
      * @param {string} prefix - the prefix to be prepended to the icon names.
      * @param {string} suffix - the suffix to be appended to the icon names.
-     * @returns {SvgIcon}
+     * @return {SvgIcon}
      */
     addIcon(resourcePath, content, { prefix, suffix }) {
         const icons = this.icons;
@@ -59,7 +60,7 @@ class SvgSprite {
         const symbols = [];
 
         // For every icon in the sprite
-        for (let iconPath in icons) {
+        for (const iconPath in icons) {
             if (icons.hasOwnProperty(iconPath)) {
 
                 // Get the icon metadata

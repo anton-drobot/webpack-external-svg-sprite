@@ -37,7 +37,7 @@ var DEFAULT_OPTIONS = {
  * @memberOf SvgStorePlugin
  * @private
  * @static
- * @type {Object.<string, SvgSprite>}
+ * @type {Record<string, SvgSprite>}
  */
 var store = {};
 
@@ -52,13 +52,14 @@ var SvgStorePlugin = function () {
 
     /**
      * Initializes options.
-     * @param options
+     * @param {Partial<typeof DEFAULT_OPTIONS>} options
      */
     function SvgStorePlugin() {
         var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
         _classCallCheck(this, SvgStorePlugin);
 
+        this.pluginName = this.constructor.name;
         this.options = Object.assign({}, DEFAULT_OPTIONS, options);
     }
 
@@ -78,13 +79,13 @@ var SvgStorePlugin = function () {
          * - Replaces the sprite URL with the hashed URL during modules optimization phase.
          * - Performs the previous step also for extracted chuncks (ExtractTextPlugin)
          * - Adds the sprites to the compilation assets during the additional assets phase.
-         * @param {Compiler} compiler
+         * @param {import("webpack").Compiler} compiler
          */
         value: function apply(compiler) {
             var _this = this;
 
             // Get compilation instance
-            compiler.plugin('this-compilation', function (compilation) {
+            compiler.hooks.thisCompilation.tap(this.pluginName, function (compilation) {
                 var svgFiles = glob.sync(path.join(_this.options.directory, '**/*.svg'), { nodir: true });
                 var sprite = SvgStorePlugin.getSprite(_this.options.name);
 
@@ -98,7 +99,7 @@ var SvgStorePlugin = function () {
                 });
 
                 // Generate sprites during the optimization phase
-                compilation.plugin('optimize', function () {
+                compilation.hooks.optimize.tap(_this.pluginName, function () {
 
                     // For every sprite
                     for (var spritePath in store) {
@@ -111,7 +112,7 @@ var SvgStorePlugin = function () {
                 });
 
                 // Replace the sprites URL with the hashed URL during the modules optimization phase
-                compilation.plugin('optimize-modules', function (modules) {
+                compilation.hooks.optimizeModules.tap(_this.pluginName, function (modules) {
 
                     // Get sprites with interpolated name
                     var spritesWithInterpolatedName = _this.getSpritesWithInterpolateName();
@@ -154,7 +155,7 @@ var SvgStorePlugin = function () {
                 });
 
                 // Replace the sprites URL with the hashed URL during the extracted chunks optimization phase
-                compilation.plugin('optimize-extracted-chunks', function (chunks) {
+                compilation.hooks.optimizeExtractedChunks.tap(_this.pluginName, function (chunks) {
 
                     // Get sprites with interpolated name
                     var spritesWithInterpolatedName = _this.getSpritesWithInterpolateName();
@@ -195,7 +196,7 @@ var SvgStorePlugin = function () {
 
                 // Add sprites to the compilation assets
                 if (_this.options.emit) {
-                    compilation.plugin('additional-assets', function (callback) {
+                    compilation.hooks.additionalAssets.tapAsync(_this.pluginName, function (callback) {
 
                         // For every sprite
                         for (var spritePath in store) {

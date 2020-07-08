@@ -31,7 +31,7 @@ const DEFAULT_OPTIONS = {
  * @memberOf SvgStorePlugin
  * @private
  * @static
- * @type {Object.<string, SvgSprite>}
+ * @type {Record<string, SvgSprite>}
  */
 let store = {};
 
@@ -45,9 +45,10 @@ class SvgStorePlugin {
 
     /**
      * Initializes options.
-     * @param options
+     * @param {Partial<typeof DEFAULT_OPTIONS>} options
      */
     constructor(options = {}) {
+        this.pluginName = this.constructor.name;
         this.options = Object.assign({}, DEFAULT_OPTIONS, options);
     }
 
@@ -69,11 +70,11 @@ class SvgStorePlugin {
      * - Replaces the sprite URL with the hashed URL during modules optimization phase.
      * - Performs the previous step also for extracted chuncks (ExtractTextPlugin)
      * - Adds the sprites to the compilation assets during the additional assets phase.
-     * @param {Compiler} compiler
+     * @param {import("webpack").Compiler} compiler
      */
     apply(compiler) {
         // Get compilation instance
-        compiler.plugin('this-compilation', (compilation) => {
+        compiler.hooks.thisCompilation.tap(this.pluginName, (compilation) => {
             const svgFiles = glob.sync(path.join(this.options.directory, '**/*.svg'), { nodir: true });
             const sprite = SvgStorePlugin.getSprite(this.options.name);
 
@@ -87,10 +88,10 @@ class SvgStorePlugin {
             });
 
             // Generate sprites during the optimization phase
-            compilation.plugin('optimize', () => {
+            compilation.hooks.optimize.tap(this.pluginName, () => {
 
                 // For every sprite
-                for (let spritePath in store) {
+                for (const spritePath in store) {
                     if (store.hasOwnProperty(spritePath)) {
 
                         // Generate sprite content
@@ -100,7 +101,7 @@ class SvgStorePlugin {
             });
 
             // Replace the sprites URL with the hashed URL during the modules optimization phase
-            compilation.plugin('optimize-modules', (modules) => {
+            compilation.hooks.optimizeModules.tap(this.pluginName, (modules) => {
 
                 // Get sprites with interpolated name
                 const spritesWithInterpolatedName = this.getSpritesWithInterpolateName();
@@ -109,7 +110,7 @@ class SvgStorePlugin {
 
                     // Find icons modules
                     modules.forEach((module) => {
-                        for (let sprite of spritesWithInterpolatedName) {
+                        for (const sprite of spritesWithInterpolatedName) {
                             const { icons } = sprite;
 
                             // If the module corresponds to one of the icons of this sprite
@@ -122,7 +123,7 @@ class SvgStorePlugin {
             });
 
             // Replace the sprites URL with the hashed URL during the extracted chunks optimization phase
-            compilation.plugin('optimize-extracted-chunks', (chunks) => {
+            compilation.hooks.optimizeExtractedChunks.tap(this.pluginName, (chunks) => {
 
                 // Get sprites with interpolated name
                 const spritesWithInterpolatedName = this.getSpritesWithInterpolateName();
@@ -130,7 +131,7 @@ class SvgStorePlugin {
                 if (spritesWithInterpolatedName.length > 0) {
                     chunks.forEach((chunk) => {
                         chunk.modules.forEach((module) => {
-                            for (let sprite of spritesWithInterpolatedName) {
+                            for (const sprite of spritesWithInterpolatedName) {
                                 if (module instanceof ExtractedModule) {
                                     this.replaceSpritePathInModuleSource(module, sprite);
                                 }
@@ -142,10 +143,10 @@ class SvgStorePlugin {
 
             // Add sprites to the compilation assets
             if (this.options.emit) {
-                compilation.plugin('additional-assets', (callback) => {
+                compilation.hooks.additionalAssets.tapAsync(this.pluginName, (callback) => {
 
                     // For every sprite
-                    for (let spritePath in store) {
+                    for (const spritePath in store) {
                         if (store.hasOwnProperty(spritePath)) {
 
                             // Get sprite
@@ -185,7 +186,7 @@ class SvgStorePlugin {
     getSpritesWithInterpolateName() {
         const spritesWithInterpolatedName = [];
 
-        for (let spritePath in store) {
+        for (const spritePath in store) {
             if (store.hasOwnProperty(spritePath)) {
                 const sprite = store[spritePath];
                 const { originalPath, resourcePath } = sprite;
@@ -207,7 +208,7 @@ class SvgStorePlugin {
     replaceSpritePathInModuleSource(module, sprite) {
         const { originalPathRegExp, resourcePath } = sprite;
 
-        let source = module._source;
+        const source = module._source;
 
         if (typeof source === 'string') {
             module._source = source.replace(originalPathRegExp, resourcePath);
