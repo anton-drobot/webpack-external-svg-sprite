@@ -10,6 +10,7 @@ var cheerio = require('cheerio');
  * SVG Document
  * - Generates SVG content.
  * - Parses the content of a SVG document.
+ * @class SvgDocument
  */
 
 var SvgDocument = function () {

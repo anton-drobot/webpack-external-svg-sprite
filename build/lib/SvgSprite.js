@@ -12,6 +12,7 @@ var SvgIcon = require('./SvgIcon');
 
 /**
  * SVG Sprite
+ * @class SvgSprite
  */
 
 var SvgSprite = function () {
@@ -41,7 +42,7 @@ var SvgSprite = function () {
      * @param {string} content - the icon content.
      * @param {string} prefix - the prefix to be prepended to the icon names.
      * @param {string} suffix - the suffix to be appended to the icon names.
-     * @returns {SvgIcon}
+     * @return {SvgIcon}
      */
 
 
