@@ -5,6 +5,7 @@ const SvgDocument = require('./SvgDocument');
 /**
  * SVG Icon
  * - Stores an icon metadata and its content.
+ * @class SvgIcon
  */
 class SvgIcon {
 
